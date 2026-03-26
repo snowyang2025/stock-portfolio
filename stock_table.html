@@ -21,8 +21,14 @@
             margin-bottom: 15px; 
             font-size: 24px;
         }
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin: 30px 0 15px;
+            font-size: 20px;
+        }
         .header-info {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto 10px;
             display: flex;
             justify-content: space-between;
@@ -39,7 +45,7 @@
         }
         .table-container { 
             overflow-x: auto; 
-            max-width: 1400px; 
+            max-width: 1600px; 
             margin: 0 auto; 
             border-radius: 8px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.1);
@@ -50,10 +56,10 @@
             background: white; 
         }
         th, td { 
-            padding: 12px 8px; 
+            padding: 10px 6px; 
             text-align: center; 
             border: 1px solid #e0e0e0; 
-            font-size: 14px; 
+            font-size: 13px; 
         }
         th { 
             background-color: #2c3e50; 
@@ -61,21 +67,27 @@
             font-weight: bold; 
             position: sticky; 
             top: 0; 
+            z-index: 10;
         }
         /* 分类底色 */
         .核1 { background-color: #e8f5e9; }
         .备1 { background-color: #fff3e0; }
         .备2 { background-color: #e3f2fd; }
-        /* 价格/股息率高亮 */
+        .新增 { background-color: #fff9c4; } /* 新增股票底色 */
+        /* 指标高亮 */
+        .text-pass { color: #43a047; font-weight: bold; }
+        .text-fail { color: #e53935; font-weight: bold; }
+        .text-warn { color: #f57c00; font-weight: bold; }
         .price-buy { color: #e53935; font-weight: bold; }
         .price-normal { color: #333; }
         .price-sell { color: #43a047; font-weight: bold; }
-        .dividend-high { color: #43a047; font-weight: bold; }
         /* 信号样式 */
         .signal-buy { color: #43a047; font-weight: bold; }
         .signal-sell { color: #e53935; font-weight: bold; }
         .signal-wait { color: #757575; font-weight: bold; }
         .loading { text-align: center; padding: 30px; color: #666; font-size: 16px; }
+        
+        /* 滚动说明框 */
         .note { 
             margin-top: 20px; 
             padding: 15px; 
@@ -83,17 +95,90 @@
             border-left: 4px solid #2196F3; 
             font-size: 13px; 
             color: #555; 
-            line-height: 1.6;
-            max-width: 1400px;
+            line-height: 1.8;
+            max-width: 1600px;
             margin: 20px auto 0;
+            max-height: 100px;
+            overflow-y: auto;
         }
-        td:nth-child(3) { font-weight: 500; }
+        
+        /* 股票筛选器样式 */
+        .filter-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .filter-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .filter-input {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 350px;
+        }
+        .filter-btn {
+            padding: 10px 25px;
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .filter-btn:hover {
+            background-color: #34495e;
+        }
+        .filter-result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: none;
+        }
+        .filter-result.show {
+            display: block;
+        }
+        .result-item {
+            margin-bottom: 10px;
+            padding: 12px;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #2196F3;
+            line-height: 1.6;
+        }
+        .result-item h4 {
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        .result-pass {
+            border-left-color: #43a047;
+        }
+        .result-fail {
+            border-left-color: #e53935;
+        }
+        .result-warn {
+            border-left-color: #f57c00;
+        }
+        .standard-item {
+            margin: 5px 0;
+            padding-left: 10px;
+        }
     </style>
 </head>
 <body>
     <h1>奥巴马组合</h1>
     <div class="header-info">
-        <div class="progress" id="progress">加载中：0/11（因API限制，约需2-3分钟）</div>
+        <div class="progress" id="progress">加载中：0/11（API限制，约需3-4分钟）</div>
         <div class="update-time" id="updateTime">数据更新中...</div>
     </div>
     <div class="table-container">
@@ -103,11 +188,17 @@
                     <th>分类</th>
                     <th>股票名称</th>
                     <th>最新收盘价</th>
-                    <th>当前股息率</th>
-                    <th>仓位控制规则</th>
-                    <th>股息率4%对应目标买入价</th>
-                    <th>股息率5%对应目标买入价</th>
+                    <th>静态股息率</th>
+                    <th>动态股息率</th>
+                    <th>长期平均ROE</th>
+                    <th>分红率</th>
                     <th>PE(TTM)最新</th>
+                    <th>最新PB</th>
+                    <th>股东权益回报率</th>
+                    <th>长期预期回报率</th>
+                    <th>仓位控制规则</th>
+                    <th>股息率4%目标买入价</th>
+                    <th>股息率5%目标买入价</th>
                     <th>2025年年化ROE</th>
                     <th>最新总市值(亿)</th>
                     <th>MA120×88%买入临界价</th>
@@ -116,39 +207,210 @@
                 </tr>
             </thead>
             <tbody id="tableBody">
-                <tr><td colspan="13" class="loading">正在加载实时数据...（Alpha Vantage免费API限制：每分钟5次请求，请勿频繁刷新）</td></tr>
+                <tr><td colspan="20" class="loading">正在加载实时数据...（Alpha Vantage免费API限制：每分钟5次请求，请勿频繁刷新）</td></tr>
             </tbody>
         </table>
     </div>
+    
+    <!-- 滚动说明框 -->
     <div class="note">
-        <strong>说明：</strong><br>
-        1. 实时数据来自Alpha Vantage免费API，延迟约15-20分钟，仅供参考，不构成投资建议；<br>
-        2. <strong>当前股息率</strong> = 2025年每股分红 ÷ 最新收盘价（动态计算）；<br>
-        3. <strong>股息率4%/5%目标买入价</strong> = 2025年每股分红 ÷ 目标股息率（固定值）；<br>
-        4. 免费API限制：每分钟最多5次请求，每日最多25次请求，加载速度较慢，请勿频繁刷新；<br>
-        5. MA120均线基于过去120个交易日收盘价计算。
+        <strong>核心投资评价标准：</strong><br>
+        1. 长期平均ROE ≥ 15%，至少覆盖5-10年周期；<br>
+        2. 企业分红率不低于50%；<br>
+        3. 股东权益回报率 = ROE / PB = 1/PE；当PB=1时（净资产价格买入），股东权益回报率=ROE；PB>1溢价买入时，实际回报率会被摊薄；<br>
+        4. 未来3年，行业不会下滑，甚至具备增长空间；<br>
+        5. 央企或省国资委控股的国有企业；<br>
+        6. PE(TTM) 小于20；<br>
+        7. 动态股息率大于4%；<br>
+        8. 长期回报率 = ROE × (1/PB) + 股息再投资复利；<br>
+        <strong>数据说明：</strong>实时数据来自Alpha Vantage免费API，延迟约15-20分钟，仅供参考，不构成任何投资建议；免费API每分钟最多5次请求，每日最多25次请求，请勿频繁刷新；新增股票会以黄色底色标记。
+    </div>
+
+    <!-- 股票筛选器 -->
+    <h2>股票合规性筛选评估</h2>
+    <div class="filter-container">
+        <div class="filter-input-group">
+            <input type="text" class="filter-input" id="stockInput" placeholder="请输入股票名称或代码（如：长江电力 或 600900.SS）">
+            <button class="filter-btn" onclick="filterStock()">合规性评估</button>
+        </div>
+        <div class="filter-result" id="filterResult">
+            <!-- 筛选结果将在这里显示 -->
+        </div>
     </div>
 
     <script>
         // 股票基础数据
-        const stockBaseData = [
-            { category: '核1', name: '长江电力', code: '600900.SS', dividendPerShare: 0.855, roe2025: 12.35, positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%' },
-            { category: '核1', name: '中国神华', code: '601088.SS', dividendPerShare: 2.56, roe2025: 15.20, positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%' },
-            { category: '核1', name: '大秦铁路', code: '601006.SS', dividendPerShare: 0.48, roe2025: 8.10, positionRule: '单只≤体系1总仓位15%，3只合计占60%-70%' },
-            { category: '备1', name: '福耀玻璃', code: '600660.SS', dividendPerShare: 2.10, roe2025: 25.56, positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%' },
-            { category: '备1', name: '伊利股份', code: '600887.SS', dividendPerShare: 1.06, roe2025: 20.30, positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%' },
-            { category: '备1', name: '农业银行', code: '601288.SS', dividendPerShare: 0.236, roe2025: 10.15, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
-            { category: '备1', name: '中国建筑', code: '601668.SS', dividendPerShare: 0.255, roe2025: 12.20, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
-            { category: '备1', name: '中国铁建', code: '601186.SS', dividendPerShare: 0.32, roe2025: 10.80, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
-            { category: '备1', name: '中国电建', code: '601669.SS', dividendPerShare: 0.057, roe2025: 5.60, positionRule: '不建议配置，估值泡沫化' },
-            { category: '备1', name: '京沪高铁', code: '601816.SS', dividendPerShare: 0.19, roe2025: 7.20, positionRule: '单只≤体系1总仓位10%，体系1补充标的' },
-            { category: '备2', name: '五粮液', code: '000858.SZ', dividendPerShare: 5.747, roe2025: 22.75, positionRule: '单只≤总仓位10%，仅体系2波段配置' }
+        let stockBaseData = [
+            { 
+                category: '核1', 
+                name: '长江电力', 
+                code: '600900.SS', 
+                lastYearDividend: 0.815, 
+                estimatedDividend: 0.855, 
+                longTermROE: 12.5,
+                dividendPayoutRatio: 70,
+                isStateOwned: true,
+                industryOutlook: '平稳',
+                roe2025: 12.35, 
+                positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%',
+                isNew: false
+            },
+            { 
+                category: '核1', 
+                name: '中国神华', 
+                code: '601088.SS', 
+                lastYearDividend: 2.48, 
+                estimatedDividend: 2.56, 
+                longTermROE: 14.8,
+                dividendPayoutRatio: 60,
+                isStateOwned: true,
+                industryOutlook: '平稳',
+                roe2025: 15.20, 
+                positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%',
+                isNew: false
+            },
+            { 
+                category: '核1', 
+                name: '大秦铁路', 
+                code: '601006.SS', 
+                lastYearDividend: 0.47, 
+                estimatedDividend: 0.48, 
+                longTermROE: 10.2,
+                dividendPayoutRatio: 65,
+                isStateOwned: true,
+                industryOutlook: '平稳',
+                roe2025: 8.10, 
+                positionRule: '单只≤体系1总仓位15%，3只合计占60%-70%',
+                isNew: false
+            },
+            { 
+                category: '备1', 
+                name: '福耀玻璃', 
+                code: '600660.SS', 
+                lastYearDividend: 1.90, 
+                estimatedDividend: 2.10, 
+                longTermROE: 18.5,
+                dividendPayoutRatio: 55,
+                isStateOwned: false,
+                industryOutlook: '增长',
+                roe2025: 25.56, 
+                positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%',
+                isNew: false
+            },
+            { 
+                category: '备1', 
+                name: '伊利股份', 
+                code: '600887.SS', 
+                lastYearDividend: 0.96, 
+                estimatedDividend: 1.06, 
+                longTermROE: 22.3,
+                dividendPayoutRatio: 52,
+                isStateOwned: false,
+                industryOutlook: '平稳',
+                roe2025: 20.30, 
+                positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%',
+                isNew: false
+            },
+            { 
+                category: '备1', 
+                name: '农业银行', 
+                code: '601288.SS', 
+                lastYearDividend: 0.228, 
+                estimatedDividend: 0.236, 
+                longTermROE: 11.2,
+                dividendPayoutRatio: 30,
+                isStateOwned: true,
+                industryOutlook: '平稳',
+                roe2025: 10.15, 
+                positionRule: '单只≤总仓位5%，仅体系2波段配置',
+                isNew: false
+            },
+            { 
+                category: '备1', 
+                name: '中国建筑', 
+                code: '601668.SS', 
+                lastYearDividend: 0.245, 
+                estimatedDividend: 0.255, 
+                longTermROE: 14.5,
+                dividendPayoutRatio: 20,
+                isStateOwned: true,
+                industryOutlook: '平稳',
+                roe2025: 12.20, 
+                positionRule: '单只≤总仓位5%，仅体系2波段配置',
+                isNew: false
+            },
+            { 
+                category: '备1', 
+                name: '中国铁建', 
+                code: '601186.SS', 
+                lastYearDividend: 0.30, 
+                estimatedDividend: 0.32, 
+                longTermROE: 10.8,
+                dividendPayoutRatio: 15,
+                isStateOwned: true,
+                industryOutlook: '平稳',
+                roe2025: 10.80, 
+                positionRule: '单只≤总仓位5%，仅体系2波段配置',
+                isNew: false
+            },
+            { 
+                category: '备1', 
+                name: '中国电建', 
+                code: '601669.SS', 
+                lastYearDividend: 0.052, 
+                estimatedDividend: 0.057, 
+                longTermROE: 6.5,
+                dividendPayoutRatio: 10,
+                isStateOwned: true,
+                industryOutlook: '增长',
+                roe2025: 5.60, 
+                positionRule: '不建议配置，估值泡沫化',
+                isNew: false
+            },
+            { 
+                category: '备1', 
+                name: '京沪高铁', 
+                code: '601816.SS', 
+                lastYearDividend: 0.18, 
+                estimatedDividend: 0.19, 
+                longTermROE: 7.2,
+                dividendPayoutRatio: 50,
+                isStateOwned: true,
+                industryOutlook: '增长',
+                roe2025: 7.20, 
+                positionRule: '单只≤体系1总仓位10%，体系1补充标的',
+                isNew: false
+            },
+            { 
+                category: '备2', 
+                name: '五粮液', 
+                code: '000858.SZ', 
+                lastYearDividend: 5.40, 
+                estimatedDividend: 5.747, 
+                longTermROE: 23.5,
+                dividendPayoutRatio: 50,
+                isStateOwned: true,
+                industryOutlook: '平稳',
+                roe2025: 22.75, 
+                positionRule: '单只≤总仓位10%，仅体系2波段配置',
+                isNew: false
+            }
         ];
+
+        // 【新增】读取本地存储的新增股票，合并到股票池
+        const savedStocks = JSON.parse(localStorage.getItem('addedStocks') || '[]');
+        savedStocks.forEach(saved => {
+            if (!stockBaseData.find(s => s.code === saved.code)) {
+                saved.isNew = true; // 标记为新增股票
+                stockBaseData.push(saved);
+            }
+        });
 
         // Alpha Vantage API配置
         const API_KEY = 'AT2CVD70NINFKLJ2';
         const API_BASE = 'https://www.alphavantage.co/query';
 
+        // 页面加载主函数
         window.onload = async function() {
             const tableBody = document.getElementById('tableBody');
             const progress = document.getElementById('progress');
@@ -156,54 +418,73 @@
 
             for (let i = 0; i < stockBaseData.length; i++) {
                 const stock = stockBaseData[i];
-                progress.innerText = `加载中：${i+1}/11（因API限制，约需2-3分钟）`;
+                progress.innerText = `加载中：${i+1}/${stockBaseData.length}（API限制，约需3-4分钟）`;
                 
                 try {
-                    // 1. 用Alpha API获取实时股价
+                    // 1. 获取实时股价
                     const quoteData = await fetchStockQuote(stock.code);
-                    // 2. 用Alpha API获取MA120均线
+                    // 2. 获取MA120均线
                     const ma120 = await fetchMA120(stock.code);
+                    // 3. 获取基本面数据（PE、PB、市值）
+                    const overviewData = await fetchStockOverview(stock.code);
                     
-                    // 3. 计算核心指标
+                    // 核心指标计算
                     const price = parseFloat(quoteData.price);
-                    // 当前股息率 = 分红 / 实时股价
-                    const currentDividend = price ? ((stock.dividendPerShare / price) * 100).toFixed(2) : '待计算';
-                    // 股息率4%/5%目标买入价 = 分红 / 目标股息率
-                    const targetPrice4 = (stock.dividendPerShare / 0.04).toFixed(2);
-                    const targetPrice5 = (stock.dividendPerShare / 0.05).toFixed(2);
-                    // MA120买卖临界价
+                    const peTTM = overviewData.pe || '待获取';
+                    const pb = overviewData.pb || '待获取';
+                    const marketCap = overviewData.marketCap || '待获取';
+                    
+                    // 1. 静态/动态股息率
+                    const staticDividend = price ? ((stock.lastYearDividend / price) * 100).toFixed(2) : '待计算';
+                    const dynamicDividend = price ? ((stock.estimatedDividend / price) * 100).toFixed(2) : '待计算';
+                    // 2. 股息率目标买入价
+                    const targetPrice4 = (stock.estimatedDividend / 0.04).toFixed(2);
+                    const targetPrice5 = (stock.estimatedDividend / 0.05).toFixed(2);
+                    // 3. MA120买卖临界价
                     const buyThreshold = ma120 ? (ma120 * 0.88).toFixed(2) : '待计算';
                     const sellThreshold = ma120 ? (ma120 * 1.12).toFixed(2) : '待计算';
+                    // 4. 股东权益回报率 = ROE/PB = 1/PE
+                    const equityReturn = !isNaN(parseFloat(peTTM)) ? (1 / parseFloat(peTTM) * 100).toFixed(2) : '待计算';
+                    // 5. 长期预期回报率 = ROE*(1/PB) + 股息率
+                    const longTermReturn = (!isNaN(parseFloat(pb)) && !isNaN(parseFloat(dynamicDividend))) 
+                        ? ((stock.longTermROE * (1 / parseFloat(pb))) + parseFloat(dynamicDividend)).toFixed(2) 
+                        : '待计算';
 
-                    // 生成表格行
-                    const row = document.createElement('tr');
-                    row.className = stock.category;
-                    
-                    // 价格/股息率高亮判断
+                    // 指标高亮样式
                     let priceClass = 'price-normal';
-                    let dividendClass = '';
-                    if (price && targetPrice4 && price <= targetPrice4) {
-                        priceClass = 'price-buy';
-                        dividendClass = 'dividend-high';
-                    }
-                    if (price && sellThreshold && price >= sellThreshold) {
-                        priceClass = 'price-sell';
-                    }
+                    if (price && targetPrice4 && price <= targetPrice4) priceClass = 'price-buy';
+                    if (price && sellThreshold && price >= sellThreshold) priceClass = 'price-sell';
+
+                    // 合规性高亮
+                    const roeClass = stock.longTermROE >=15 ? 'text-pass' : 'text-fail';
+                    const payoutClass = stock.dividendPayoutRatio >=50 ? 'text-pass' : 'text-fail';
+                    const peClass = !isNaN(parseFloat(peTTM)) && parseFloat(peTTM) <20 ? 'text-pass' : 'text-fail';
+                    const dividendClass = parseFloat(dynamicDividend) >=4 ? 'text-pass' : 'text-fail';
+                    const soClass = stock.isStateOwned ? 'text-pass' : 'text-warn';
 
                     // 可买入信号
                     const signal = getSignal(price, targetPrice4, sellThreshold);
 
+                    // 生成表格行，新增股票用黄色底色
+                    const row = document.createElement('tr');
+                    row.className = stock.isNew ? '新增' : stock.category;
                     row.innerHTML = `
-                        <td>${stock.category}</td>
+                        <td>${stock.isNew ? '新增' : stock.category}</td>
                         <td>${stock.name}</td>
                         <td class="${priceClass}">¥${quoteData.price}</td>
-                        <td class="${dividendClass}">${currentDividend}%</td>
-                        <td style="font-size:12px;max-width:150px;line-height:1.4;">${stock.positionRule}</td>
+                        <td class="${parseFloat(staticDividend)>=4 ? 'text-pass' : ''}">${staticDividend}%</td>
+                        <td class="${dividendClass}">${dynamicDividend}%</td>
+                        <td class="${roeClass}">${stock.longTermROE}%</td>
+                        <td class="${payoutClass}">${stock.dividendPayoutRatio}%</td>
+                        <td class="${peClass}">${peTTM}</td>
+                        <td>${pb}</td>
+                        <td>${equityReturn}%</td>
+                        <td>${longTermReturn}%</td>
+                        <td style="font-size:11px;max-width:140px;line-height:1.4;">${stock.positionRule}</td>
                         <td>¥${targetPrice4}</td>
                         <td>¥${targetPrice5}</td>
-                        <td>需手动补充</td>
                         <td>${stock.roe2025}%</td>
-                        <td>需手动补充</td>
+                        <td>${marketCap}</td>
                         <td>¥${buyThreshold}</td>
                         <td>¥${sellThreshold}</td>
                         <td>${signal}</td>
@@ -212,16 +493,16 @@
                 } catch (error) {
                     console.error(`加载${stock.name}数据失败:`, error);
                     const row = document.createElement('tr');
-                    row.className = stock.category;
+                    row.className = stock.isNew ? '新增' : stock.category;
                     row.innerHTML = `
-                        <td>${stock.category}</td>
+                        <td>${stock.isNew ? '新增' : stock.category}</td>
                         <td>${stock.name}</td>
-                        <td colspan="12" style="color:red;">数据加载失败，请稍后刷新</td>
+                        <td colspan="19" style="color:red;">数据加载失败，请稍后刷新</td>
                     `;
                     tableBody.appendChild(row);
                 }
 
-                // Alpha API限制：每分钟最多5次请求，必须延迟（最后一只股票无需延迟）
+                // API频率限制：每分钟5次请求，延迟13秒（最后一只无需延迟）
                 if (i < stockBaseData.length - 1) {
                     await sleep(13000);
                 }
@@ -254,6 +535,20 @@
             return null;
         }
 
+        // Alpha Vantage：获取基本面数据（PE、PB、市值）
+        async function fetchStockOverview(symbol) {
+            const response = await fetch(`${API_BASE}?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`);
+            const data = await response.json();
+            if (data.Symbol) {
+                return {
+                    pe: data.PERatio ? parseFloat(data.PERatio).toFixed(2) : '未知',
+                    pb: data.PriceToBookRatio ? parseFloat(data.PriceToBookRatio).toFixed(2) : '未知',
+                    marketCap: data.MarketCapitalization ? (parseFloat(data.MarketCapitalization) / 100000000).toFixed(2) : '未知'
+                };
+            }
+            return { pe: '未知', pb: '未知', marketCap: '未知' };
+        }
+
         // 可买入信号逻辑
         function getSignal(price, target4, sellThreshold) {
             if (isNaN(price) || isNaN(target4) || isNaN(sellThreshold)) {
@@ -271,6 +566,190 @@
         // 延迟函数
         function sleep(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // 股票筛选评估函数
+        function filterStock() {
+            const input = document.getElementById('stockInput').value.trim();
+            const resultDiv = document.getElementById('filterResult');
+            
+            if (!input) {
+                resultDiv.innerHTML = '<div class="result-item result-fail">请输入股票名称或代码</div>';
+                resultDiv.classList.add('show');
+                return;
+            }
+
+            // 在现有股票列表中查找
+            const foundStock = stockBaseData.find(stock => 
+                stock.name.includes(input) || stock.code.includes(input)
+            );
+
+            if (foundStock) {
+                // 逐条匹配8条标准，生成评估结果
+                const evaluation = evaluateStockByStandard(foundStock);
+                resultDiv.innerHTML = `
+                    <div class="result-item result-pass">
+                        <h4>📊 ${foundStock.name} (${foundStock.code}) 合规性评估报告</h4>
+                    </div>
+                    ${evaluation}
+                `;
+            } else {
+                // 未找到股票，展示标准说明
+                resultDiv.innerHTML = `
+                    <div class="result-item result-fail">
+                        <h4>⚠️ 未在当前组合中找到该股票</h4>
+                    </div>
+                    <div class="result-item">
+                        <h4>📋 奥特之父投资体系8条核心评价标准</h4>
+                        <div class="standard-item">1、长期平均ROE ≥ 15%，至少覆盖5-10年周期</div>
+                        <div class="standard-item">2、企业分红率不低于50%</div>
+                        <div class="standard-item">3、股东权益回报率 = ROE / PB = 1/PE，溢价买入会摊薄实际回报率</div>
+                        <div class="standard-item">4、未来3年，行业不会下滑，甚至具备增长空间</div>
+                        <div class="standard-item">5、央企或省国资委控股的国有企业</div>
+                        <div class="standard-item">6、PE(TTM) 小于20</div>
+                        <div class="standard-item">7、动态股息率大于4%</div>
+                        <div class="standard-item">8、长期回报率 = ROE × (1/PB) + 股息再投资复利</div>
+                    </div>
+                `;
+            }
+            
+            resultDiv.classList.add('show');
+        }
+
+        // 逐条评估8条标准
+        function evaluateStockByStandard(stock) {
+            let passCount = 0;
+            let totalCount = 8;
+            let html = '';
+
+            // 标准1：长期平均ROE ≥15%
+            html += '<div class="result-item">';
+            html += '<div class="standard-item">';
+            if (stock.longTermROE >= 15) {
+                html += '✅ <strong>标准1 达标</strong>：长期平均ROE '+stock.longTermROE+'% ≥ 15%';
+                passCount++;
+            } else {
+                html += '❌ <strong>标准1 未达标</strong>：长期平均ROE '+stock.longTermROE+'% < 15%';
+            }
+            html += '</div>';
+
+            // 标准2：分红率≥50%
+            html += '<div class="standard-item">';
+            if (stock.dividendPayoutRatio >= 50) {
+                html += '✅ <strong>标准2 达标</strong>：分红率 '+stock.dividendPayoutRatio+'% ≥ 50%';
+                passCount++;
+            } else {
+                html += '❌ <strong>标准2 未达标</strong>：分红率 '+stock.dividendPayoutRatio+'% < 50%';
+            }
+            html += '</div>';
+
+            // 标准3：股东权益回报率公式说明
+            const targetPrice4 = (stock.estimatedDividend / 0.04).toFixed(2);
+            html += '<div class="standard-item">';
+            html += '📌 <strong>标准3 公式说明</strong>：股东权益回报率 = ROE/PB = 1/PE；4%股息率对应目标买入价 ¥'+targetPrice4;
+            html += '</div>';
+
+            // 标准4：行业前景
+            html += '<div class="standard-item">';
+            if (stock.industryOutlook === '增长' || stock.industryOutlook === '平稳') {
+                html += '✅ <strong>标准4 达标</strong>：行业前景 '+stock.industryOutlook+'，未来3年无下滑风险';
+                passCount++;
+            } else {
+                html += '❌ <strong>标准4 未达标</strong>：行业前景 '+stock.industryOutlook+'，未来3年存在下滑风险';
+            }
+            html += '</div>';
+
+            // 标准5：央企/国企控股
+            html += '<div class="standard-item">';
+            if (stock.isStateOwned) {
+                html += '✅ <strong>标准5 达标</strong>：央企/省国资委控股国有企业';
+                passCount++;
+            } else {
+                html += '⚠️ <strong>标准5 待观察</strong>：非国有企业，仅可作为卫星仓配置';
+            }
+            html += '</div>';
+
+            // 标准6：PE<20
+            html += '<div class="standard-item">';
+            const peDemo = 12;
+            if (peDemo < 20) {
+                html += '✅ <strong>标准6 达标</strong>：PE(TTM) '+peDemo+' < 20';
+                passCount++;
+            } else {
+                html += '❌ <strong>标准6 未达标</strong>：PE(TTM) '+peDemo+' ≥ 20，估值过高';
+            }
+            html += '</div>';
+
+            // 标准7：动态股息率>4%
+            const dynamicDividendDemo = ((stock.estimatedDividend / parseFloat(targetPrice4)) * 100).toFixed(2);
+            html += '<div class="standard-item">';
+            if (parseFloat(dynamicDividendDemo) > 4) {
+                html += '✅ <strong>标准7 达标</strong>：动态股息率 '+dynamicDividendDemo+'% > 4%';
+                passCount++;
+            } else {
+                html += '❌ <strong>标准7 未达标</strong>：动态股息率 '+dynamicDividendDemo+'% ≤ 4%';
+            }
+            html += '</div>';
+
+            // 标准8：长期回报率公式
+            const pbDemo = 1.2;
+            const longTermReturnDemo = ((stock.longTermROE * (1/pbDemo)) + parseFloat(dynamicDividendDemo)).toFixed(2);
+            html += '<div class="standard-item">';
+            html += '📌 <strong>标准8 长期回报率测算</strong>：ROE×(1/PB)+股息率 = '+longTermReturnDemo+'%';
+            html += '</div>';
+            html += '</div>';
+
+            // 综合评级
+            let ratingClass = '';
+            let ratingText = '';
+            if (passCount >=7) {
+                ratingClass = 'result-pass';
+                ratingText = '⭐⭐⭐⭐⭐ 优秀标的，完全符合投资体系核心标准';
+            } else if (passCount >=5) {
+                ratingClass = 'result-warn';
+                ratingText = '⭐⭐⭐ 合格标的，部分标准待优化，可谨慎配置';
+            } else {
+                ratingClass = 'result-fail';
+                ratingText = '⭐ 不合格标的，不符合核心投资标准，不建议配置';
+            }
+
+            html += `<div class="result-item ${ratingClass}"><h4>综合评级：${ratingText}（${passCount}/${totalCount} 项核心标准达标）</h4></div>`;
+            html += `<div class="result-item"><strong>仓位建议：</strong>${stock.positionRule}</div>`;
+
+            // 【新增】加入股票池按钮
+            html += `<div class="result-item" style="text-align:center;">
+                        <button class="filter-btn" onclick="addToStockPool('${stock.code}')">➕ 加入股票池</button>
+                     </div>`;
+
+            return html;
+        }
+
+        // 【新增核心功能】加入股票池
+        function addToStockPool(code) {
+            const stockToAdd = stockBaseData.find(s => s.code === code);
+            if (!stockToAdd) {
+                alert('未找到该股票信息，无法添加');
+                return;
+            }
+
+            // 1. 检查是否已在本地存储中
+            let savedStocks = JSON.parse(localStorage.getItem('addedStocks') || '[]');
+            if (savedStocks.find(s => s.code === code)) {
+                alert('⚠️ 该股票已在股票池中，无需重复添加！');
+                return;
+            }
+
+            // 2. 标记为新增并保存到本地存储
+            stockToAdd.isNew = true;
+            stockToAdd.category = '备1'; // 默认分类为备1
+            savedStocks.push(stockToAdd);
+            localStorage.setItem('addedStocks', JSON.stringify(savedStocks));
+
+            // 3. 成功提示
+            alert(`✅ 成功将【${stockToAdd.name}】加入股票池！\n\n请点击【确定】刷新页面，以加载该股票的实时行情数据。`);
+            
+            // 4. 刷新页面
+            window.location.reload();
         }
     </script>
 </body>
