@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奥特之父投资体系股票组合 - 实时数据版</title>
+    <style>
+        body { font-family: 'Microsoft YaHei', sans-serif; margin: 20px; background-color: #f5f7fa; }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; }
+        .table-container { overflow-x: auto; max-width: 1400px; margin: 0 auto; }
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+        th, td { padding: 12px 8px; text-align: center; border: 1px solid #e0e0e0; font-size: 14px; }
+        th { background-color: #2c3e50; color: white; font-weight: bold; position: sticky; top: 0; }
+        .核1 { background-color: #e8f5e9; }
+        .备1 { background-color: #fff3e0; }
+        .备2 { background-color: #e3f2fd; }
+        .loading { text-align: center; padding: 20px; color: #666; }
+        .update-time { text-align: right; margin-bottom: 10px; color: #666; font-size: 12px; }
+        .note { margin-top: 20px; padding: 15px; background: #fff; border-left: 4px solid #2196F3; font-size: 13px; color: #555; }
+    </style>
+</head>
+<body>
+    <h1>奥特之父投资体系股票组合</h1>
+    <div class="update-time" id="updateTime">数据更新中...</div>
+    <div class="table-container">
+        <table id="stockTable">
+            <thead>
+                <tr>
+                    <th>分类</th>
+                    <th>股票名称</th>
+                    <th>最新收盘价</th>
+                    <th>仓位控制规则</th>
+                    <th>股息率4%对应目标买入价</th>
+                    <th>股息率5%对应目标买入价</th>
+                    <th>PE(TTM)最新</th>
+                    <th>2025年年化ROE</th>
+                    <th>最新总市值(亿)</th>
+                    <th>MA120×88%买入临界价</th>
+                    <th>MA120×112%止盈临界价</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="11" class="loading">正在加载实时数据...（因API限制，约需2-3分钟加载完成）</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="note">
+        <strong>说明：</strong><br>
+        1. 实时数据来自Alpha Vantage免费API，延迟约15-20分钟，仅供参考，不构成投资建议；<br>
+        2. 免费API限制：每分钟最多5次请求，每日最多25次请求，因此加载速度较慢，请勿频繁刷新；<br>
+        3. MA120均线基于过去120个交易日收盘价计算；<br>
+        4. 股息率目标价基于2025年已公告分红方案固定计算；<br>
+        5. 若需更稳定的国内实时数据，建议使用腾讯文档/飞书多维表格的股票函数替代。
+    </div>
+
+    <script>
+        // 股票基础数据（手动维护，分红等固定数据）
+        const stockBaseData = [
+            { category: '核1', name: '长江电力', code: '600900.SS', dividendPerShare: 0.855, roe2025: 12.35, positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%' },
+            { category: '核1', name: '中国神华', code: '601088.SS', dividendPerShare: 2.56, roe2025: 15.20, positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%' },
+            { category: '核1', name: '大秦铁路', code: '601006.SS', dividendPerShare: 0.48, roe2025: 8.10, positionRule: '单只≤体系1总仓位15%，3只合计占60%-70%' },
+            { category: '备1', name: '福耀玻璃', code: '600660.SS', dividendPerShare: 2.10, roe2025: 25.56, positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%' },
+            { category: '备1', name: '伊利股份', code: '600887.SS', dividendPerShare: 1.06, roe2025: 20.30, positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%' },
+            { category: '备1', name: '农业银行', code: '601288.SS', dividendPerShare: 0.236, roe2025: 10.15, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
+            { category: '备1', name: '中国建筑', code: '601668.SS', dividendPerShare: 0.255, roe2025: 12.20, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
+            { category: '备1', name: '中国铁建', code: '601186.SS', dividendPerShare: 0.32, roe2025: 10.80, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
+            { category: '备1', name: '中国电建', code: '601669.SS', dividendPerShare: 0.057, roe2025: 5.60, positionRule: '不建议配置，估值泡沫化' },
+            { category: '备1', name: '京沪高铁', code: '601816.SS', dividendPerShare: 0.19, roe2025: 7.20, positionRule: '单只≤体系1总仓位10%，体系1补充标的' },
+            { category: '备2', name: '五粮液', code: '000858.SZ', dividendPerShare: 5.747, roe2025: 22.75, positionRule: '单只≤总仓位10%，仅体系2波段配置' }
+        ];
+
+        // 已替换为你的专属API Key
+        const API_KEY = 'AT2CVD70NINFKLJ2';
+        const API_BASE = 'https://www.alphavantage.co/query';
+
+        // 页面加载完成后执行
+        window.onload = async function() {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+
+            for (let i = 0; i < stockBaseData.length; i++) {
+                const stock = stockBaseData[i];
+                try {
+                    // 获取实时股价
+                    const quoteData = await fetchStockQuote(stock.code);
+                    // 获取MA120均线
+                    const ma120 = await fetchMA120(stock.code);
+                    
+                    // 计算目标价
+                    const targetPrice4 = (stock.dividendPerShare / 0.04).toFixed(2);
+                    const targetPrice5 = (stock.dividendPerShare / 0.05).toFixed(2);
+                    const buyThreshold = ma120 ? (ma120 * 0.88).toFixed(2) : '待计算';
+                    const sellThreshold = ma120 ? (ma120 * 1.12).toFixed(2) : '待计算';
+
+                    // 生成表格行
+                    const row = document.createElement('tr');
+                    row.className = stock.category;
+                    row.innerHTML = `
+                        <td>${stock.category}</td>
+                        <td>${stock.name}</td>
+                        <td>${quoteData.price ? '¥' + quoteData.price : '加载失败'}</td>
+                        <td style="font-size:12px;max-width:150px;">${stock.positionRule}</td>
+                        <td>¥${targetPrice4}</td>
+                        <td>¥${targetPrice5}</td>
+                        <td>需手动补充</td>
+                        <td>${stock.roe2025}%</td>
+                        <td>需手动补充</td>
+                        <td>¥${buyThreshold}</td>
+                        <td>¥${sellThreshold}</td>
+                    `;
+                    tableBody.appendChild(row);
+                } catch (error) {
+                    console.error(`加载${stock.name}数据失败:`, error);
+                    const row = document.createElement('tr');
+                    row.className = stock.category;
+                    row.innerHTML = `
+                        <td>${stock.category}</td>
+                        <td>${stock.name}</td>
+                        <td colspan="10" style="color:red;">数据加载失败，请稍后刷新</td>
+                    `;
+                    tableBody.appendChild(row);
+                }
+
+                // 免费API限制：每分钟最多5次请求，必须延迟（最后一只股票无需延迟）
+                if (i < stockBaseData.length - 1) {
+                    await sleep(13000);
+                }
+            }
+
+            // 更新时间
+            document.getElementById('updateTime').innerText = `数据更新时间：${new Date().toLocaleString('zh-CN')}`;
+        };
+
+        // 获取实时股价
+        async function fetchStockQuote(symbol) {
+            const response = await fetch(`${API_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+            const data = await response.json();
+            if (data['Global Quote']) {
+                const price = parseFloat(data['Global Quote']['05. price']);
+                return { price: price.toFixed(2) };
+            }
+            throw new Error('Quote data not found');
+        }
+
+        // 获取MA120均线
+        async function fetchMA120(symbol) {
+            const response = await fetch(`${API_BASE}?function=SMA&symbol=${symbol}&interval=daily&time_period=120&series_type=close&apikey=${API_KEY}`);
+            const data = await response.json();
+            if (data['Technical Analysis: SMA']) {
+                const latestDate = Object.keys(data['Technical Analysis: SMA'])[0];
+                return parseFloat(data['Technical Analysis: SMA'][latestDate]['SMA']);
+            }
+            return null;
+        }
+
+        // 延迟函数
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    </script>
+</body>
+</html>
