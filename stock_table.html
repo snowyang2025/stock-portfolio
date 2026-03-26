@@ -66,10 +66,11 @@
         .核1 { background-color: #e8f5e9; }
         .备1 { background-color: #fff3e0; }
         .备2 { background-color: #e3f2fd; }
-        /* 价格高亮提示 */
+        /* 价格/股息率高亮 */
         .price-buy { color: #e53935; font-weight: bold; }
         .price-normal { color: #333; }
         .price-sell { color: #43a047; font-weight: bold; }
+        .dividend-high { color: #43a047; font-weight: bold; }
         /* 信号样式 */
         .signal-buy { color: #43a047; font-weight: bold; }
         .signal-sell { color: #e53935; font-weight: bold; }
@@ -90,10 +91,9 @@
     </style>
 </head>
 <body>
-    <!-- 1. 标题修改为 奥巴马组合 -->
     <h1>奥巴马组合</h1>
     <div class="header-info">
-        <div class="progress" id="progress">加载中：0/11</div>
+        <div class="progress" id="progress">加载中：0/11（因API限制，约需2-3分钟）</div>
         <div class="update-time" id="updateTime">数据更新中...</div>
     </div>
     <div class="table-container">
@@ -103,6 +103,7 @@
                     <th>分类</th>
                     <th>股票名称</th>
                     <th>最新收盘价</th>
+                    <th>当前股息率</th>
                     <th>仓位控制规则</th>
                     <th>股息率4%对应目标买入价</th>
                     <th>股息率5%对应目标买入价</th>
@@ -111,129 +112,153 @@
                     <th>最新总市值(亿)</th>
                     <th>MA120×88%买入临界价</th>
                     <th>MA120×112%止盈临界价</th>
-                    <!-- 2. 新增 可买入信号 列 -->
                     <th>可买入信号</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
-                <tr><td colspan="12" class="loading">正在加载实时数据...（秒级加载，无需等待）</td></tr>
+                <tr><td colspan="13" class="loading">正在加载实时数据...（Alpha Vantage免费API限制：每分钟5次请求，请勿频繁刷新）</td></tr>
             </tbody>
         </table>
     </div>
     <div class="note">
         <strong>说明：</strong><br>
-        1. 实时数据来自新浪财经免费接口，A股精准实时数据，无延迟、无请求限制；<br>
-        2. <span class="price-buy">红色价格</span>：买入机会；<span class="price-sell">绿色价格</span>：止盈提醒；<br>
-        3. MA120均线基于过去120个交易日收盘价自动计算；<br>
-        4. 股息率目标价基于2025年已公告分红方案固定计算；<br>
-        5. 数据本地缓存5分钟，频繁刷新不重复请求，打开速度更快。
+        1. 实时数据来自Alpha Vantage免费API，延迟约15-20分钟，仅供参考，不构成投资建议；<br>
+        2. <strong>当前股息率</strong> = 2025年每股分红 ÷ 最新收盘价（动态计算）；<br>
+        3. <strong>股息率4%/5%目标买入价</strong> = 2025年每股分红 ÷ 目标股息率（固定值）；<br>
+        4. 免费API限制：每分钟最多5次请求，每日最多25次请求，加载速度较慢，请勿频繁刷新；<br>
+        5. MA120均线基于过去120个交易日收盘价计算。
     </div>
 
     <script>
         // 股票基础数据
         const stockBaseData = [
-            { category: '核1', name: '长江电力', code: '600900', dividendPerShare: 0.855, roe2025: 12.35, positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%' },
-            { category: '核1', name: '中国神华', code: '601088', dividendPerShare: 2.56, roe2025: 15.20, positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%' },
-            { category: '核1', name: '大秦铁路', code: '601006', dividendPerShare: 0.48, roe2025: 8.10, positionRule: '单只≤体系1总仓位15%，3只合计占60%-70%' },
-            { category: '备1', name: '福耀玻璃', code: '600660', dividendPerShare: 2.10, roe2025: 25.56, positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%' },
-            { category: '备1', name: '伊利股份', code: '600887', dividendPerShare: 1.06, roe2025: 20.30, positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%' },
-            { category: '备1', name: '农业银行', code: '601288', dividendPerShare: 0.236, roe2025: 10.15, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
-            { category: '备1', name: '中国建筑', code: '601668', dividendPerShare: 0.255, roe2025: 12.20, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
-            { category: '备1', name: '中国铁建', code: '601186', dividendPerShare: 0.32, roe2025: 10.80, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
-            { category: '备1', name: '中国电建', code: '601669', dividendPerShare: 0.057, roe2025: 5.60, positionRule: '不建议配置，估值泡沫化' },
-            { category: '备1', name: '京沪高铁', code: '601816', dividendPerShare: 0.19, roe2025: 7.20, positionRule: '单只≤体系1总仓位10%，体系1补充标的' },
-            { category: '备2', name: '五粮液', code: '000858', dividendPerShare: 5.747, roe2025: 22.75, positionRule: '单只≤总仓位10%，仅体系2波段配置' }
+            { category: '核1', name: '长江电力', code: '600900.SS', dividendPerShare: 0.855, roe2025: 12.35, positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%' },
+            { category: '核1', name: '中国神华', code: '601088.SS', dividendPerShare: 2.56, roe2025: 15.20, positionRule: '单只≤体系1总仓位20%，3只合计占60%-70%' },
+            { category: '核1', name: '大秦铁路', code: '601006.SS', dividendPerShare: 0.48, roe2025: 8.10, positionRule: '单只≤体系1总仓位15%，3只合计占60%-70%' },
+            { category: '备1', name: '福耀玻璃', code: '600660.SS', dividendPerShare: 2.10, roe2025: 25.56, positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%' },
+            { category: '备1', name: '伊利股份', code: '600887.SS', dividendPerShare: 1.06, roe2025: 20.30, positionRule: '单只≤体系1总仓位10%，民企卫星仓合计≤20%' },
+            { category: '备1', name: '农业银行', code: '601288.SS', dividendPerShare: 0.236, roe2025: 10.15, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
+            { category: '备1', name: '中国建筑', code: '601668.SS', dividendPerShare: 0.255, roe2025: 12.20, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
+            { category: '备1', name: '中国铁建', code: '601186.SS', dividendPerShare: 0.32, roe2025: 10.80, positionRule: '单只≤总仓位5%，仅体系2波段配置' },
+            { category: '备1', name: '中国电建', code: '601669.SS', dividendPerShare: 0.057, roe2025: 5.60, positionRule: '不建议配置，估值泡沫化' },
+            { category: '备1', name: '京沪高铁', code: '601816.SS', dividendPerShare: 0.19, roe2025: 7.20, positionRule: '单只≤体系1总仓位10%，体系1补充标的' },
+            { category: '备2', name: '五粮液', code: '000858.SZ', dividendPerShare: 5.747, roe2025: 22.75, positionRule: '单只≤总仓位10%，仅体系2波段配置' }
         ];
 
-        // 缓存配置
-        const CACHE_KEY = 'stock_data_cache';
-        const CACHE_EXPIRE = 5 * 60 * 1000;
+        // Alpha Vantage API配置
+        const API_KEY = 'AT2CVD70NINFKLJ2';
+        const API_BASE = 'https://www.alphavantage.co/query';
 
         window.onload = async function() {
             const tableBody = document.getElementById('tableBody');
             const progress = document.getElementById('progress');
             tableBody.innerHTML = '';
 
-            const cache = getCache();
-            if (cache) {
-                renderTable(cache);
-                return;
-            }
-
-            const stockDataList = [];
             for (let i = 0; i < stockBaseData.length; i++) {
                 const stock = stockBaseData[i];
-                progress.innerText = `加载中：${i+1}/11`;
+                progress.innerText = `加载中：${i+1}/11（因API限制，约需2-3分钟）`;
                 
                 try {
-                    const realData = await fetchSinaStockData(stock.code);
-                    const indicators = calcIndicators(stock, realData);
-                    stockDataList.push({ ...stock, ...realData, ...indicators });
+                    // 1. 用Alpha API获取实时股价
+                    const quoteData = await fetchStockQuote(stock.code);
+                    // 2. 用Alpha API获取MA120均线
+                    const ma120 = await fetchMA120(stock.code);
+                    
+                    // 3. 计算核心指标
+                    const price = parseFloat(quoteData.price);
+                    // 当前股息率 = 分红 / 实时股价
+                    const currentDividend = price ? ((stock.dividendPerShare / price) * 100).toFixed(2) : '待计算';
+                    // 股息率4%/5%目标买入价 = 分红 / 目标股息率
+                    const targetPrice4 = (stock.dividendPerShare / 0.04).toFixed(2);
+                    const targetPrice5 = (stock.dividendPerShare / 0.05).toFixed(2);
+                    // MA120买卖临界价
+                    const buyThreshold = ma120 ? (ma120 * 0.88).toFixed(2) : '待计算';
+                    const sellThreshold = ma120 ? (ma120 * 1.12).toFixed(2) : '待计算';
+
+                    // 生成表格行
+                    const row = document.createElement('tr');
+                    row.className = stock.category;
+                    
+                    // 价格/股息率高亮判断
+                    let priceClass = 'price-normal';
+                    let dividendClass = '';
+                    if (price && targetPrice4 && price <= targetPrice4) {
+                        priceClass = 'price-buy';
+                        dividendClass = 'dividend-high';
+                    }
+                    if (price && sellThreshold && price >= sellThreshold) {
+                        priceClass = 'price-sell';
+                    }
+
+                    // 可买入信号
+                    const signal = getSignal(price, targetPrice4, sellThreshold);
+
+                    row.innerHTML = `
+                        <td>${stock.category}</td>
+                        <td>${stock.name}</td>
+                        <td class="${priceClass}">¥${quoteData.price}</td>
+                        <td class="${dividendClass}">${currentDividend}%</td>
+                        <td style="font-size:12px;max-width:150px;line-height:1.4;">${stock.positionRule}</td>
+                        <td>¥${targetPrice4}</td>
+                        <td>¥${targetPrice5}</td>
+                        <td>需手动补充</td>
+                        <td>${stock.roe2025}%</td>
+                        <td>需手动补充</td>
+                        <td>¥${buyThreshold}</td>
+                        <td>¥${sellThreshold}</td>
+                        <td>${signal}</td>
+                    `;
+                    tableBody.appendChild(row);
                 } catch (error) {
-                    stockDataList.push({ 
-                        ...stock, 
-                        price: '获取失败', 
-                        pe: '异常', 
-                        marketCap: '异常', 
-                        ma120: 0,
-                        targetPrice4: (stock.dividendPerShare / 0.04).toFixed(2),
-                        targetPrice5: (stock.dividendPerShare / 0.05).toFixed(2),
-                        buyThreshold: '计算失败',
-                        sellThreshold: '计算失败'
-                    });
+                    console.error(`加载${stock.name}数据失败:`, error);
+                    const row = document.createElement('tr');
+                    row.className = stock.category;
+                    row.innerHTML = `
+                        <td>${stock.category}</td>
+                        <td>${stock.name}</td>
+                        <td colspan="12" style="color:red;">数据加载失败，请稍后刷新</td>
+                    `;
+                    tableBody.appendChild(row);
+                }
+
+                // Alpha API限制：每分钟最多5次请求，必须延迟（最后一只股票无需延迟）
+                if (i < stockBaseData.length - 1) {
+                    await sleep(13000);
                 }
             }
 
-            setCache(stockDataList);
-            renderTable(stockDataList);
+            // 更新时间
+            document.getElementById('updateTime').innerText = `数据更新时间：${new Date().toLocaleString('zh-CN')}`;
             progress.innerText = '加载完成';
         };
 
-        // 新浪股票数据接口
-        async function fetchSinaStockData(code) {
-            const symbol = code.startsWith('6') ? `sh${code}` : `sz${code}`;
-            const url = `https://hq.sinajs.cn/list=${symbol}`;
-            
-            return new Promise((resolve) => {
-                const script = document.createElement('script');
-                script.src = url;
-                window['hq_str_' + symbol] = (data) => {
-                    const arr = data.split(',');
-                    document.body.removeChild(script);
-                    resolve({
-                        price: parseFloat(arr[3]).toFixed(2),
-                        pe: arr[14] || '未知',
-                        marketCap: (parseFloat(arr[37]) / 100000000).toFixed(2),
-                        ma120: parseFloat(arr[3]).toFixed(2)
-                    });
-                };
-                script.onerror = () => resolve({ price: '失败', pe: '失败', marketCap: '失败', ma120: 0 });
-                document.body.appendChild(script);
-            });
+        // Alpha Vantage：获取实时股价
+        async function fetchStockQuote(symbol) {
+            const response = await fetch(`${API_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+            const data = await response.json();
+            if (data['Global Quote']) {
+                const price = parseFloat(data['Global Quote']['05. price']);
+                return { price: price.toFixed(2) };
+            }
+            throw new Error('Quote data not found');
         }
 
-        // 计算指标
-        function calcIndicators(stock, realData) {
-            const targetPrice4 = (stock.dividendPerShare / 0.04).toFixed(2);
-            const targetPrice5 = (stock.dividendPerShare / 0.05).toFixed(2);
-            const ma120 = parseFloat(realData.ma120);
-            const buyThreshold = ma120 ? (ma120 * 0.88).toFixed(2) : '待计算';
-            const sellThreshold = ma120 ? (ma120 * 1.12).toFixed(2) : '待计算';
-            return { targetPrice4, targetPrice5, buyThreshold, sellThreshold };
+        // Alpha Vantage：获取MA120均线
+        async function fetchMA120(symbol) {
+            const response = await fetch(`${API_BASE}?function=SMA&symbol=${symbol}&interval=daily&time_period=120&series_type=close&apikey=${API_KEY}`);
+            const data = await response.json();
+            if (data['Technical Analysis: SMA']) {
+                const latestDate = Object.keys(data['Technical Analysis: SMA'])[0];
+                return parseFloat(data['Technical Analysis: SMA'][latestDate]['SMA']);
+            }
+            return null;
         }
 
-        // 3. 严格按照你的公式生成 可买入信号
-        function getSignal(item) {
-            const price = parseFloat(item.price);
-            const target4 = parseFloat(item.targetPrice4);
-            const sellThreshold = parseFloat(item.sellThreshold);
-            
-            // 数据异常判断
+        // 可买入信号逻辑
+        function getSignal(price, target4, sellThreshold) {
             if (isNaN(price) || isNaN(target4) || isNaN(sellThreshold)) {
                 return '<span class="signal-wait">数据异常</span>';
             }
-            
-            // 公式：IF(最新收盘价<=股息率4%目标价,✅买入信号,IF(最新收盘价>=止盈价,🔴止盈信号,⚪观望))
             if (price <= target4) {
                 return '<span class="signal-buy">✅ 买入信号</span>';
             } else if (price >= sellThreshold) {
@@ -243,59 +268,9 @@
             }
         }
 
-        // 渲染表格
-        function renderTable(dataList) {
-            const tableBody = document.getElementById('tableBody');
-            tableBody.innerHTML = '';
-
-            dataList.forEach(item => {
-                let priceClass = 'price-normal';
-                const price = parseFloat(item.price);
-                const target4 = parseFloat(item.targetPrice4);
-                const sell = parseFloat(item.sellThreshold);
-                if (price && target4 && price <= target4) priceClass = 'price-buy';
-                if (price && sell && price >= sell) priceClass = 'price-sell';
-
-                // 获取信号
-                const signal = getSignal(item);
-                
-                const row = document.createElement('tr');
-                row.className = item.category;
-                row.innerHTML = `
-                    <td>${item.category}</td>
-                    <td>${item.name}</td>
-                    <td class="${priceClass}">¥${item.price}</td>
-                    <td style="font-size:12px;max-width:150px;line-height:1.4;">${item.positionRule}</td>
-                    <td>¥${item.targetPrice4}</td>
-                    <td>¥${item.targetPrice5}</td>
-                    <td>${item.pe}</td>
-                    <td>${item.roe2025}%</td>
-                    <td>${item.marketCap}</td>
-                    <td>¥${item.buyThreshold}</td>
-                    <td>¥${item.sellThreshold}</td>
-                    <!-- 渲染信号列 -->
-                    <td>${signal}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-
-            document.getElementById('updateTime').innerText = `数据更新时间：${new Date().toLocaleString('zh-CN')}`;
-        }
-
-        // 缓存工具
-        function getCache() {
-            const cache = localStorage.getItem(CACHE_KEY);
-            if (!cache) return null;
-            const { data, time } = JSON.parse(cache);
-            if (Date.now() - time > CACHE_EXPIRE) {
-                localStorage.removeItem(CACHE_KEY);
-                return null;
-            }
-            return data;
-        }
-
-        function setCache(data) {
-            localStorage.setItem(CACHE_KEY, JSON.stringify({ data, time: Date.now() }));
+        // 延迟函数
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
         }
     </script>
 </body>
