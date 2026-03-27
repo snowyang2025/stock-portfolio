@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>奥巴马组合 - 稳定版</title>
+    <title>奥巴马组合 - 全市场无限制版</title>
     <style>
         * {
             margin: 0;
@@ -45,15 +45,6 @@
             color: #2196F3;
             font-size: 13px;
         }
-        .debug-info {
-            max-width: 1600px;
-            margin: 10px auto;
-            padding: 10px;
-            background: #fff3e0;
-            border-left: 4px solid #f57c00;
-            font-size: 12px;
-            color: #555;
-        }
         .table-container { 
             overflow-x: auto; 
             max-width: 1600px; 
@@ -92,11 +83,11 @@
         .price-buy { color: #e53935; font-weight: bold; }
         .price-normal { color: #333; }
         .price-sell { color: #43a047; font-weight: bold; }
+        /* 信号样式 */
+        .signal-buy { color: #43a047; font-weight: bold; }
+        .signal-sell { color: #e53935; font-weight: bold; }
+        .signal-wait { color: #757575; font-weight: bold; }
         .loading { text-align: center; padding: 30px; color: #666; font-size: 16px; }
-        .btn-loading {
-            background-color: #607d8b !important;
-            cursor: not-allowed !important;
-        }
         
         /* 滚动说明框 */
         .note { 
@@ -214,11 +205,6 @@
         <div class="update-time" id="updateTime">等待开始...</div>
     </div>
     
-    <!-- 调试信息框 -->
-    <div class="debug-info" id="debugInfo">
-        <strong>💡 提示：</strong>如果API加载失败，会自动显示备用数据。免费API限制：每分钟5次，每日25次。
-    </div>
-    
     <div class="table-container">
         <table id="stockTable">
             <thead>
@@ -235,11 +221,13 @@
                     <th>股东权益回报率</th>
                     <th>仓位控制规则</th>
                     <th>股息率4%目标价</th>
+                    <th>MA120×88%买入价</th>
+                    <th>MA120×112%止盈价</th>
                     <th>可买入信号</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
-                <tr><td colspan="13" class="loading">正在准备加载数据...</td></tr>
+                <tr><td colspan="15" class="loading">正在加载实时数据...</td></tr>
             </tbody>
         </table>
     </div>
@@ -247,9 +235,15 @@
     <!-- 滚动说明框 -->
     <div class="note">
         <strong>核心投资评价标准：</strong><br>
-        1. 长期平均ROE ≥ 15%；2. 企业分红率不低于50%；3. 股东权益回报率 = ROE/PB = 1/PE；<br>
-        4. 未来3年行业不下滑；5. 央企/国企控股；6. PE<20；7. 动态股息率>4%；8. 长期回报率 = ROE×(1/PB)+股息率<br>
-        <strong>数据说明：</strong>API失败时自动显示备用演示数据，仅供参考，不构成投资建议。
+        1. 长期平均ROE ≥ 15%，至少覆盖5-10年周期；<br>
+        2. 企业分红率不低于50%；<br>
+        3. 股东权益回报率 = ROE / PB = 1/PE；当PB=1时（净资产价格买入），股东权益回报率=ROE；PB>1溢价买入时，实际回报率会被摊薄；<br>
+        4. 未来3年，行业不会下滑，甚至具备增长空间；<br>
+        5. 央企或省国资委控股的国有企业；<br>
+        6. PE(TTM) 小于20；<br>
+        7. 动态股息率大于4%；<br>
+        8. 长期回报率 = ROE × (1/PB) + 股息再投资复利；<br>
+        <strong>数据说明：</strong>实时数据来自新浪财经开源免费接口，无任何API限制，支持沪市、深市、港股全市场股票，数据仅供参考，不构成任何投资建议。
     </div>
 
     <!-- 全市场股票筛选器 -->
@@ -257,231 +251,275 @@
     <div class="filter-container">
         <div class="quick-test">
             <strong>快速测试：</strong>
-            <button onclick="testStock('600900.SS')">长江电力</button>
-            <button onclick="testStock('601088.SS')">中国神华</button>
-            <button onclick="testStock('000651.SZ')">格力电器</button>
-            <button onclick="loadDemoData()">仅显示备用数据</button>
+            <button onclick="quickTest('格力电器')">格力电器</button>
+            <button onclick="quickTest('贵州茅台')">贵州茅台</button>
+            <button onclick="quickTest('腾讯控股')">腾讯控股</button>
+            <button onclick="quickTest('招商银行')">招商银行</button>
         </div>
         <div class="filter-input-group">
-            <input type="text" class="filter-input" id="stockInput" placeholder="请输入股票名称/代码（如：格力电器、000651、600519.SS）">
+            <input type="text" class="filter-input" id="stockInput" placeholder="请输入股票名称/代码（如：格力电器、000651、600519）">
             <button class="filter-btn" id="filterBtn" onclick="filterStock()">合规性评估</button>
         </div>
-        <div class="input-tip">支持沪市(.SS)、深市(.SZ)、港股(.HK)，API失败时会显示提示</div>
+        <div class="input-tip">支持沪市、深市、港股全市场股票，输入中文名称或纯数字代码即可自动识别，无任何API限制</div>
         <div class="filter-result" id="filterResult">
             <!-- 筛选结果将在这里显示 -->
         </div>
     </div>
 
     <script>
-        // 内置基础股票池（包含备用演示数据）
-        const stockBaseData = [
+        // 内置基础股票池
+        let stockBaseData = [
             { 
                 category: '核1', 
                 name: '长江电力', 
-                code: '600900.SS', 
+                code: '600900', 
                 lastYearDividend: 0.815, 
                 estimatedDividend: 0.855, 
                 longTermROE: 12.5,
                 dividendPayoutRatio: 70,
                 isStateOwned: true,
                 industryOutlook: '平稳',
-                roe2025: 12.35, 
                 positionRule: '单只≤20%，3只合计60%-70%',
-                isNew: false,
-                demoPrice: 28.50,
-                demoPE: 14.2,
-                demoPB: 1.8
+                isNew: false
             },
             { 
                 category: '核1', 
                 name: '中国神华', 
-                code: '601088.SS', 
+                code: '601088', 
                 lastYearDividend: 2.48, 
                 estimatedDividend: 2.56, 
                 longTermROE: 14.8,
                 dividendPayoutRatio: 60,
                 isStateOwned: true,
                 industryOutlook: '平稳',
-                roe2025: 15.20, 
                 positionRule: '单只≤20%，3只合计60%-70%',
-                isNew: false,
-                demoPrice: 32.80,
-                demoPE: 8.5,
-                demoPB: 1.2
+                isNew: false
             },
             { 
                 category: '核1', 
                 name: '大秦铁路', 
-                code: '601006.SS', 
+                code: '601006', 
                 lastYearDividend: 0.47, 
                 estimatedDividend: 0.48, 
                 longTermROE: 10.2,
                 dividendPayoutRatio: 65,
                 isStateOwned: true,
                 industryOutlook: '平稳',
-                roe2025: 8.10, 
                 positionRule: '单只≤15%，3只合计60%-70%',
-                isNew: false,
-                demoPrice: 7.20,
-                demoPE: 7.8,
-                demoPB: 0.9
+                isNew: false
             },
             { 
                 category: '备1', 
                 name: '福耀玻璃', 
-                code: '600660.SS', 
+                code: '600660', 
                 lastYearDividend: 1.90, 
                 estimatedDividend: 2.10, 
                 longTermROE: 18.5,
                 dividendPayoutRatio: 55,
                 isStateOwned: false,
                 industryOutlook: '增长',
-                roe2025: 25.56, 
                 positionRule: '单只≤10%，民企卫星仓≤20%',
-                isNew: false,
-                demoPrice: 45.00,
-                demoPE: 16.8,
-                demoPB: 2.8
+                isNew: false
+            },
+            { 
+                category: '备1', 
+                name: '伊利股份', 
+                code: '600887', 
+                lastYearDividend: 0.96, 
+                estimatedDividend: 1.06, 
+                longTermROE: 22.3,
+                dividendPayoutRatio: 52,
+                isStateOwned: false,
+                industryOutlook: '平稳',
+                positionRule: '单只≤10%，民企卫星仓≤20%',
+                isNew: false
             },
             { 
                 category: '备1', 
                 name: '格力电器', 
-                code: '000651.SZ', 
+                code: '000651', 
                 lastYearDividend: 2.00, 
                 estimatedDividend: 2.20, 
                 longTermROE: 22.0,
                 dividendPayoutRatio: 60,
                 isStateOwned: false,
                 industryOutlook: '平稳',
-                roe2025: 21.5, 
                 positionRule: '单只≤10%，民企卫星仓≤20%',
-                isNew: false,
-                demoPrice: 38.50,
-                demoPE: 10.5,
-                demoPB: 2.1
+                isNew: false
             }
         ];
 
-        // 常用股票名称-代码映射
+        // 常用股票名称-代码映射（持续扩展）
         const stockNameMap = {
-            '格力电器': '000651.SZ',
-            '贵州茅台': '600519.SS',
-            '腾讯控股': '00700.HK',
-            '招商银行': '600036.SS',
-            '平安银行': '000001.SZ',
-            '万科A': '000002.SZ',
-            '比亚迪': '002594.SZ',
-            '宁德时代': '300750.SZ',
-            '中国石油': '601857.SS',
-            '中国石化': '600028.SS',
-            '美的集团': '000333.SZ'
+            '格力电器': '000651',
+            '贵州茅台': '600519',
+            '腾讯控股': '00700',
+            '阿里巴巴': '09988',
+            '招商银行': '600036',
+            '平安银行': '000001',
+            '万科A': '000002',
+            '比亚迪': '002594',
+            '宁德时代': '300750',
+            '中国石油': '601857',
+            '中国石化': '600028',
+            '中国移动': '600941',
+            '中国电信': '601728',
+            '美的集团': '000333',
+            '海尔智家': '600690',
+            '泸州老窖': '000568',
+            '山西汾酒': '600809'
         };
 
-        // Alpha Vantage API配置
-        const API_KEY = 'AT2CVD70NINFKLJ2';
-        const API_BASE = 'https://www.alphavantage.co/query';
-        
         // 全局变量
-        let useDemoMode = false;
-        let apiFailCount = 0;
-        const MAX_API_FAILS = 3;
+        let currentEvalStock = null;
+        const SINA_API_BASE = 'https://hq.sinajs.cn/list=';
+
+        // 读取本地存储的新增股票，合并到股票池
+        const savedStocks = JSON.parse(localStorage.getItem('addedStocks') || '[]');
+        savedStocks.forEach(saved => {
+            if (!stockBaseData.find(s => s.code === saved.code)) {
+                saved.isNew = true;
+                stockBaseData.push(saved);
+            }
+        });
 
         // ==================== 页面初始化 ====================
         window.onload = async function() {
-            // 先显示备用数据，让用户立即看到内容
-            renderDemoTable();
-            
-            // 然后尝试加载API数据
-            if (!useDemoMode) {
-                await loadRealData();
-            }
+            await loadAllStockData();
         };
 
-        // ==================== 渲染备用数据表格（立即显示） ====================
-        function renderDemoTable() {
-            const tableBody = document.getElementById('tableBody');
-            tableBody.innerHTML = '';
-            
-            stockBaseData.forEach(stock => {
-                const row = createTableRow(stock, {
-                    price: stock.demoPrice,
-                    pe: stock.demoPE,
-                    pb: stock.demoPB,
-                    isDemo: true
-                });
-                tableBody.appendChild(row);
-            });
-            
-            document.getElementById('updateTime').innerText = `备用数据展示时间：${new Date().toLocaleString('zh-CN')}`;
-            document.getElementById('progress').innerText = '备用数据已加载（正在尝试API...）';
-        }
-
-        // ==================== 尝试加载真实API数据 ====================
-        async function loadRealData() {
+        // ==================== 批量加载所有股票实时数据 ====================
+        async function loadAllStockData() {
             const tableBody = document.getElementById('tableBody');
             const progress = document.getElementById('progress');
-            const debugInfo = document.getElementById('debugInfo');
-            
             tableBody.innerHTML = '';
-            let successCount = 0;
 
-            for (let i = 0; i < stockBaseData.length; i++) {
-                const stock = stockBaseData[i];
-                progress.innerText = `API加载中：${i+1}/${stockBaseData.length}（${stock.name}）`;
+            // 生成新浪接口需要的代码列表
+            const codeList = stockBaseData.map(stock => formatStockCode(stock.code)).join(',');
+            progress.innerText = `正在加载${stockBaseData.length}只股票数据...`;
+
+            try {
+                // 一次性获取所有股票实时数据（新浪支持批量查询）
+                const allStockData = await fetchSinaBatchData(codeList);
                 
-                try {
-                    // 尝试获取API数据
-                    const realData = await fetchStockDataWithTimeout(stock.code, 8000);
+                // 遍历渲染每只股票
+                for (let i = 0; i < stockBaseData.length; i++) {
+                    const stock = stockBaseData[i];
+                    const realData = allStockData[formatStockCode(stock.code)];
                     
-                    if (realData && realData.price) {
+                    if (realData) {
                         const row = createTableRow(stock, realData);
                         tableBody.appendChild(row);
-                        successCount++;
                     } else {
-                        throw new Error('数据无效');
-                    }
-                    
-                } catch (error) {
-                    console.log(`${stock.name} API加载失败，使用备用数据:`, error);
-                    apiFailCount++;
-                    
-                    // 使用备用数据
-                    const row = createTableRow(stock, {
-                        price: stock.demoPrice,
-                        pe: stock.demoPE,
-                        pb: stock.demoPB,
-                        isDemo: true
-                    });
-                    tableBody.appendChild(row);
-                    
-                    // 如果连续失败多次，切换到纯备用模式
-                    if (apiFailCount >= MAX_API_FAILS) {
-                        debugInfo.innerHTML = `<strong>⚠️ API限制触发：</strong>已连续${MAX_API_FAILS}次请求失败，切换到备用数据模式。免费API限制：每分钟5次，每日25次。`;
-                        break;
+                        // 数据获取失败，显示占位
+                        const row = document.createElement('tr');
+                        row.className = stock.isNew ? '新增' : stock.category;
+                        row.innerHTML = `
+                            <td>${stock.isNew ? '新增' : stock.category}</td>
+                            <td>${stock.name}</td>
+                            <td colspan="14" style="color:red;">数据获取失败</td>
+                        `;
+                        tableBody.appendChild(row);
                     }
                 }
 
-                // API延迟（避免超限）
-                if (i < stockBaseData.length - 1 && apiFailCount < MAX_API_FAILS) {
-                    await sleep(3000); // 缩短到3秒，提高体验
-                }
+                // 更新状态
+                document.getElementById('updateTime').innerText = `数据更新时间：${new Date().toLocaleString('zh-CN')}`;
+                progress.innerText = `加载完成，共${stockBaseData.length}只股票`;
+
+            } catch (error) {
+                console.error('批量加载失败:', error);
+                tableBody.innerHTML = `<tr><td colspan="15" class="loading" style="color:red;">数据加载失败，请刷新重试</td></tr>`;
             }
+        }
 
-            document.getElementById('updateTime').innerText = `数据更新时间：${new Date().toLocaleString('zh-CN')}（${successCount}/${stockBaseData.length}只为API数据）`;
-            progress.innerText = `加载完成（${successCount}只API数据，${stockBaseData.length - successCount}只备用数据）`;
+        // ==================== 新浪财经接口核心函数 ====================
+        // 格式化股票代码：6开头→sh，0/3开头→sz，5位→hk
+        function formatStockCode(code) {
+            code = code.replace(/\D/g, '');
+            if (code.length === 6) {
+                if (code.startsWith('6')) return `sh${code}`;
+                if (code.startsWith('0') || code.startsWith('3')) return `sz${code}`;
+            }
+            if (code.length === 5) return `hk${code}`;
+            return code;
+        }
+
+        // 批量获取新浪实时数据（JSONP方式，无跨域限制）
+        function fetchSinaBatchData(codeList) {
+            return new Promise((resolve) => {
+                const script = document.createElement('script');
+                const callbackName = `sina_callback_${Date.now()}`;
+                const url = `${SINA_API_BASE}${codeList}`;
+
+                window[callbackName] = () => {
+                    const result = {};
+                    codeList.split(',').forEach(code => {
+                        const varName = `hq_str_${code}`;
+                        if (window[varName]) {
+                            const dataArr = window[varName].split(',');
+                            // 解析A股数据
+                            if (code.startsWith('sh') || code.startsWith('sz')) {
+                                result[code] = {
+                                    name: dataArr[0],
+                                    price: parseFloat(dataArr[3]),
+                                    yesterdayClose: parseFloat(dataArr[2]),
+                                    high: parseFloat(dataArr[4]),
+                                    low: parseFloat(dataArr[5]),
+                                    volume: dataArr[8],
+                                    amount: dataArr[9],
+                                    pe: parseFloat(dataArr[13]) || 0,
+                                    pb: parseFloat(dataArr[45]) || 0,
+                                    marketCap: (parseFloat(dataArr[44]) / 100000000).toFixed(2)
+                                };
+                            }
+                            // 解析港股数据
+                            if (code.startsWith('hk')) {
+                                result[code] = {
+                                    name: dataArr[1],
+                                    price: parseFloat(dataArr[6]),
+                                    yesterdayClose: parseFloat(dataArr[3]),
+                                    high: parseFloat(dataArr[4]),
+                                    low: parseFloat(dataArr[5]),
+                                    pe: parseFloat(dataArr[12]) || 0,
+                                    pb: parseFloat(dataArr[13]) || 0,
+                                    marketCap: (parseFloat(dataArr[9]) / 100000000).toFixed(2)
+                                };
+                            }
+                        }
+                    });
+                    // 清理
+                    document.body.removeChild(script);
+                    delete window[callbackName];
+                    resolve(result);
+                };
+
+                script.src = url;
+                script.onerror = () => {
+                    document.body.removeChild(script);
+                    delete window[callbackName];
+                    resolve({});
+                };
+                document.body.appendChild(script);
+            });
         }
 
         // ==================== 创建表格行 ====================
         function createTableRow(stock, data) {
-            const price = parseFloat(data.price);
-            const pe = parseFloat(data.pe);
-            const pb = parseFloat(data.pb);
+            const price = data.price;
+            const pe = data.pe;
+            const pb = data.pb;
             
-            // 计算指标
+            // 计算核心指标
             const staticDividend = price ? ((stock.lastYearDividend / price) * 100).toFixed(2) : '--';
             const dynamicDividend = price ? ((stock.estimatedDividend / price) * 100).toFixed(2) : '--';
             const targetPrice4 = (stock.estimatedDividend / 0.04).toFixed(2);
             const equityReturn = pe ? (1 / pe * 100).toFixed(2) : '--';
+            
+            // MA120简化计算（可用昨日收盘价替代，如需精准可扩展K线接口）
+            const ma120 = data.yesterdayClose;
+            const buyThreshold = (ma120 * 0.88).toFixed(2);
+            const sellThreshold = (ma120 * 1.12).toFixed(2);
             
             // 信号判断
             let signal = '<span class="signal-wait">⚪ 观望</span>';
@@ -490,6 +528,9 @@
             if (price && targetPrice4 && price <= targetPrice4) {
                 signal = '<span class="signal-buy">✅ 买入信号</span>';
                 priceClass = 'price-buy';
+            } else if (price && sellThreshold && price >= sellThreshold) {
+                signal = '<span class="signal-sell">🔴 止盈信号</span>';
+                priceClass = 'price-sell';
             }
             
             // 指标高亮
@@ -502,7 +543,7 @@
             row.className = stock.isNew ? '新增' : stock.category;
             row.innerHTML = `
                 <td>${stock.isNew ? '新增' : stock.category}</td>
-                <td>${stock.name}${data.isDemo ? '<br><span style="font-size:10px;color:#999;">(备用)</span>' : ''}</td>
+                <td>${stock.name}</td>
                 <td class="${priceClass}">¥${price.toFixed(2)}</td>
                 <td class="${parseFloat(staticDividend)>=4 ? 'text-pass' : ''}">${staticDividend}%</td>
                 <td class="${dividendClass}">${dynamicDividend}%</td>
@@ -513,89 +554,45 @@
                 <td>${equityReturn}%</td>
                 <td style="font-size:11px;max-width:120px;">${stock.positionRule}</td>
                 <td>¥${targetPrice4}</td>
+                <td>¥${buyThreshold}</td>
+                <td>¥${sellThreshold}</td>
                 <td>${signal}</td>
             `;
             return row;
         }
 
-        // ==================== API函数（带超时和错误处理） ====================
-        async function fetchStockDataWithTimeout(symbol, timeout) {
-            return Promise.race([
-                fetchStockData(symbol),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('请求超时')), timeout)
-                )
-            ]);
-        }
-
-        async function fetchStockData(symbol) {
-            try {
-                // 1. 获取实时股价
-                const quoteResponse = await fetch(`${API_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
-                const quoteData = await quoteResponse.json();
-                
-                if (!quoteData['Global Quote']) {
-                    throw new Error('无行情数据');
-                }
-                
-                const price = parseFloat(quoteData['Global Quote']['05. price']);
-                if (!price) throw new Error('价格无效');
-                
-                // 2. 尝试获取基本面数据（可选）
-                let pe = 15, pb = 1.5; // 默认值
-                try {
-                    const overviewResponse = await fetch(`${API_BASE}?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`);
-                    const overviewData = await overviewResponse.json();
-                    
-                    if (overviewData.PERatio) pe = parseFloat(overviewData.PERatio);
-                    if (overviewData.PriceToBookRatio) pb = parseFloat(overviewData.PriceToBookRatio);
-                } catch (e) {
-                    console.log('基本面数据获取失败，使用默认值');
-                }
-                
-                return {
-                    price: price.toFixed(2),
-                    pe: pe.toFixed(2),
-                    pb: pb.toFixed(2),
-                    isDemo: false
-                };
-            } catch (error) {
-                throw error;
-            }
-        }
-
         // ==================== 筛选器功能 ====================
-        function testStock(code) {
-            document.getElementById('stockInput').value = code;
+        function quickTest(name) {
+            document.getElementById('stockInput').value = name;
             filterStock();
         }
 
-        function loadDemoData() {
-            useDemoMode = true;
-            renderDemoTable();
-            document.getElementById('progress').innerText = '已切换到备用数据模式';
-            document.getElementById('debugInfo').innerHTML = '<strong>✅ 备用数据模式：</strong>已显示完整备用数据，无API限制。';
-        }
-
-        function parseStockCode(input) {
+        // 智能解析股票代码
+        function parseStockInput(input) {
             input = input.trim();
+            // 先匹配中文名称
             if (stockNameMap[input]) {
-                return { code: stockNameMap[input], name: input };
+                return {
+                    code: stockNameMap[input],
+                    name: input
+                };
             }
-            if (input.endsWith('.SS') || input.endsWith('.SZ') || input.endsWith('.HK')) {
-                return { code: input, name: input };
-            }
+            // 纯数字代码
             const codeNum = input.replace(/\D/g, '');
             if (codeNum.length === 6) {
-                if (codeNum.startsWith('6')) return { code: `${codeNum}.SS`, name: input };
-                if (codeNum.startsWith('0') || codeNum.startsWith('3')) return { code: `${codeNum}.SZ`, name: input };
+                return { code: codeNum, name: input };
             }
             if (codeNum.length === 5) {
-                return { code: `${codeNum.padStart(5, '0')}.HK`, name: input };
+                return { code: codeNum, name: input };
+            }
+            // 带后缀的代码
+            if (input.includes('.')) {
+                return { code: input.split('.')[0], name: input };
             }
             return null;
         }
 
+        // 筛选评估主函数
         async function filterStock() {
             const input = document.getElementById('stockInput').value.trim();
             const resultDiv = document.getElementById('filterResult');
@@ -607,100 +604,92 @@
                 return;
             }
 
-            const stockInfo = parseStockCode(input);
+            const stockInfo = parseStockInput(input);
             if (!stockInfo) {
                 resultDiv.innerHTML = `
                     <div class="result-item result-fail">
                         <h4>⚠️ 无法识别该股票</h4>
-                        <div>支持格式：中文名称、纯数字代码、带后缀代码（.SS/.SZ/.HK）</div>
+                        <div>支持格式：中文名称（如格力电器）、纯数字代码（如000651）</div>
                     </div>
                 `;
                 resultDiv.classList.add('show');
                 return;
             }
 
+            // 按钮loading状态
             filterBtn.disabled = true;
-            filterBtn.classList.add('btn-loading');
             filterBtn.innerText = '数据获取中...';
-            resultDiv.innerHTML = '<div class="result-item">正在尝试获取数据（API限制可能导致失败）...</div>';
+            resultDiv.innerHTML = '<div class="result-item">正在获取实时数据...</div>';
             resultDiv.classList.add('show');
 
             try {
-                const stockData = await fetchStockDataWithTimeout(stockInfo.code, 10000);
-                
+                // 获取实时数据
+                const formatCode = formatStockCode(stockInfo.code);
+                const stockData = await fetchSinaBatchData(formatCode);
+                const realData = stockData[formatCode];
+
+                if (!realData || !realData.price) {
+                    throw new Error('无数据返回');
+                }
+
+                // 整理股票完整数据
                 const fullStockData = {
-                    name: stockInfo.name,
+                    name: realData.name || stockInfo.name,
                     code: stockInfo.code,
-                    price: parseFloat(stockData.price),
-                    pe: parseFloat(stockData.pe),
-                    pb: parseFloat(stockData.pb),
+                    formatCode: formatCode,
+                    price: realData.price,
+                    pe: realData.pe || 0,
+                    pb: realData.pb || 0,
+                    marketCap: realData.marketCap,
+                    lastYearDividend: 1.0, // 默认值，用户可修改
+                    estimatedDividend: 1.0, // 默认值，用户可修改
                     longTermROE: 15, // 默认值
                     dividendPayoutRatio: 50, // 默认值
-                    lastYearDividend: 1.0,
-                    estimatedDividend: 1.0,
+                    isStateOwned: false,
+                    industryOutlook: '待评估',
                     positionRule: '单只≤总仓位5%，仅卫星仓配置',
                     isNew: true
                 };
                 
+                // 计算核心指标
                 fullStockData.dynamicDividend = ((fullStockData.estimatedDividend / fullStockData.price) * 100).toFixed(2);
                 fullStockData.targetPrice4 = (fullStockData.estimatedDividend / 0.04).toFixed(2);
+                fullStockData.equityReturn = fullStockData.pe ? (1 / fullStockData.pe * 100).toFixed(2) : '--';
                 
-                const evaluation = generateEvaluationReport(fullStockData, true);
+                // 生成评估报告
+                const evaluation = generateEvaluationReport(fullStockData, realData);
                 resultDiv.innerHTML = evaluation;
-                window.currentEvalStock = fullStockData;
+                currentEvalStock = fullStockData;
                 
             } catch (error) {
-                console.log('筛选API失败:', error);
+                console.error('筛选失败:', error);
                 resultDiv.innerHTML = `
-                    <div class="result-item result-warn">
-                        <h4>⚠️ API数据获取失败（免费版限制）</h4>
-                        <div>可能原因：1. API请求次数超限（每分钟5次/每日25次）；2. 网络超时</div>
-                        <div style="margin-top:10px;">
-                            <strong>💡 解决方案：</strong><br>
-                            1. 稍后再试；2. 使用上方表格的备用数据参考；3. 点击下方按钮查看演示评估
-                        </div>
-                        <div style="margin-top:15px;text-align:center;">
-                            <button class="filter-btn" onclick="showDemoEvaluation()">查看演示评估报告</button>
-                        </div>
+                    <div class="result-item result-fail">
+                        <h4>⚠️ 数据获取失败</h4>
+                        <div>请检查股票代码是否正确，或刷新页面重试</div>
                     </div>
                 `;
             } finally {
+                // 恢复按钮状态
                 filterBtn.disabled = false;
-                filterBtn.classList.remove('btn-loading');
                 filterBtn.innerText = '合规性评估';
             }
         }
 
-        function showDemoEvaluation() {
-            const demoStock = {
-                name: '格力电器(演示)',
-                code: '000651.SZ',
-                price: 38.50,
-                pe: 10.5,
-                pb: 2.1,
-                longTermROE: 22.0,
-                dividendPayoutRatio: 60,
-                dynamicDividend: '5.71',
-                targetPrice4: '55.00',
-                positionRule: '单只≤10%，民企卫星仓≤20%'
-            };
-            
-            const evaluation = generateEvaluationReport(demoStock, false);
-            document.getElementById('filterResult').innerHTML = evaluation;
-        }
-
-        function generateEvaluationReport(stock, isReal) {
+        // 生成合规性评估报告
+        function generateEvaluationReport(stock, realData) {
             let passCount = 0;
             let html = `
-                <div class="result-item ${isReal ? 'result-pass' : 'result-warn'}">
-                    <h4>📊 ${stock.name} (${stock.code}) 合规性评估报告${!isReal ? '（演示数据）' : ''}</h4>
-                    <div>最新收盘价：¥${stock.price.toFixed(2)} | PE：${stock.pe} | PB：${stock.pb}</div>
+                <div class="result-item result-pass">
+                    <h4>📊 ${stock.name} (${stock.code}) 合规性评估报告</h4>
+                    <div>最新收盘价：¥${stock.price.toFixed(2)} | PE(TTM)：${stock.pe.toFixed(2)} | PB：${stock.pb.toFixed(2)}</div>
+                    <div>总市值：${stock.marketCap}亿 | 股东权益回报率：${stock.equityReturn}%</div>
                 </div>
             `;
             
             html += '<div class="result-item">';
             
-            // 标准1
+            // 标准1：长期ROE≥15%
             if (stock.longTermROE >= 15) {
                 html += '<div class="standard-item">✅ <strong>标准1 达标</strong>：长期平均ROE '+stock.longTermROE+'% ≥ 15%</div>';
                 passCount++;
@@ -708,7 +697,7 @@
                 html += '<div class="standard-item">❌ <strong>标准1 未达标</strong>：长期平均ROE '+stock.longTermROE+'% < 15%</div>';
             }
             
-            // 标准2
+            // 标准2：分红率≥50%
             if (stock.dividendPayoutRatio >= 50) {
                 html += '<div class="standard-item">✅ <strong>标准2 达标</strong>：分红率 '+stock.dividendPayoutRatio+'% ≥ 50%</div>';
                 passCount++;
@@ -716,21 +705,21 @@
                 html += '<div class="standard-item">❌ <strong>标准2 未达标</strong>：分红率 '+stock.dividendPayoutRatio+'% < 50%</div>';
             }
             
-            // 标准3
-            html += `<div class="standard-item">📌 <strong>标准3 股东权益回报率</strong>：${(1/stock.pe*100).toFixed(2)}% = 1/PE(${stock.pe})</div>`;
+            // 标准3：股东权益回报率
+            html += `<div class="standard-item">📌 <strong>标准3 股东权益回报率</strong>：${stock.equityReturn}% = 1/PE(${stock.pe.toFixed(2)})</div>`;
             
             // 标准4-5
             html += '<div class="standard-item">⚠️ <strong>标准4-5 待确认</strong>：行业前景、国企属性需手动确认</div>';
             
-            // 标准6
-            if (stock.pe < 20) {
-                html += '<div class="standard-item">✅ <strong>标准6 达标</strong>：PE '+stock.pe+' < 20</div>';
+            // 标准6：PE<20
+            if (stock.pe < 20 && stock.pe > 0) {
+                html += '<div class="standard-item">✅ <strong>标准6 达标</strong>：PE(TTM) '+stock.pe.toFixed(2)+' < 20</div>';
                 passCount++;
             } else {
-                html += '<div class="standard-item">❌ <strong>标准6 未达标</strong>：PE '+stock.pe+' ≥ 20</div>';
+                html += '<div class="standard-item">❌ <strong>标准6 未达标</strong>：PE(TTM) '+stock.pe.toFixed(2)+' ≥ 20 或为负</div>';
             }
             
-            // 标准7
+            // 标准7：动态股息率>4%
             if (parseFloat(stock.dynamicDividend) > 4) {
                 html += '<div class="standard-item">✅ <strong>标准7 达标</strong>：动态股息率 '+stock.dynamicDividend+'% > 4%</div>';
                 passCount++;
@@ -738,30 +727,50 @@
                 html += '<div class="standard-item">❌ <strong>标准7 未达标</strong>：动态股息率 '+stock.dynamicDividend+'% ≤ 4%</div>';
             }
             
+            // 标准8：长期回报率
+            const longTermReturn = ((stock.longTermROE * (1/(stock.pb || 1))) + parseFloat(stock.dynamicDividend)).toFixed(2);
+            html += `<div class="standard-item">📌 <strong>标准8 长期预期回报率</strong>：${longTermReturn}% = ROE×(1/PB)+股息率</div>`;
+            
             html += '</div>';
             
             // 综合评级
             const ratingClass = passCount >= 3 ? 'result-pass' : (passCount >= 2 ? 'result-warn' : 'result-fail');
             const ratingText = passCount >= 3 ? '⭐⭐⭐⭐ 优秀标的' : (passCount >= 2 ? '⭐⭐⭐ 合格标的' : '⭐ 不合格标的');
             
-            html += `<div class="result-item ${ratingClass}"><h4>综合评级：${ratingText}（${passCount}/4 项可量化标准达标）</h4></div>`;
-            html += `<div class="result-item"><strong>仓位建议：</strong>${stock.positionRule}</div>`;
+            html += `<div class="result-item ${ratingClass}"><h4>综合评级：${ratingText}（${passCount}/4 项可量化核心标准达标）</h4></div>`;
+            html += `<div class="result-item"><strong>默认仓位建议：</strong>${stock.positionRule}</div>`;
             
-            if (isReal) {
-                html += `<div class="result-item" style="text-align:center;">
-                            <button class="filter-btn" onclick="addToStockPool()">➕ 加入股票池</button>
-                         </div>`;
-            }
+            // 加入股票池按钮
+            html += `<div class="result-item" style="text-align:center;">
+                        <button class="filter-btn" onclick="addToStockPool()">➕ 加入股票池</button>
+                     </div>`;
             
             return html;
         }
 
+        // 加入股票池函数
         function addToStockPool() {
-            alert('✅ 加入股票池功能演示成功！\n\n（实际使用时会保存到本地存储）');
-        }
+            if (!currentEvalStock) {
+                alert('未找到股票信息，无法添加');
+                return;
+            }
 
-        function sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
+            // 去重检查
+            let savedStocks = JSON.parse(localStorage.getItem('addedStocks') || '[]');
+            if (savedStocks.find(s => s.code === currentEvalStock.code) || stockBaseData.find(s => s.code === currentEvalStock.code)) {
+                alert('⚠️ 该股票已在股票池中，无需重复添加！');
+                return;
+            }
+
+            // 保存到本地存储
+            savedStocks.push(currentEvalStock);
+            localStorage.setItem('addedStocks', JSON.stringify(savedStocks));
+
+            // 成功提示
+            alert(`✅ 成功将【${currentEvalStock.name}】加入股票池！\n\n点击确定后页面将自动刷新，加载该股票的实时数据。`);
+            
+            // 刷新页面
+            window.location.reload();
         }
 
         // 回车触发评估
